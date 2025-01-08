@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import type { User } from '../types';
 
 const Profile = () => {
@@ -17,12 +16,16 @@ const Profile = () => {
   const onSubmit = async (data: Partial<User>) => {
     try {
       if (!userProfile?.uid) return;
+
+      // Create an update object only with defined values
+      const updateData: Partial<User> = {};
       
-      await updateDoc(doc(db, 'users', userProfile.uid), {
-        name: data.name,
-        githubProfile: data.githubProfile,
-        whatsappNumber: data.whatsappNumber
-      });
+      if (data.name) updateData.name = data.name;
+      if (data.githubProfile !== undefined) updateData.githubProfile = data.githubProfile;
+      if (data.linkedinProfile !== undefined) updateData.linkedinProfile = data.linkedinProfile;
+      if (data.whatsappNumber !== undefined) updateData.whatsappNumber = data.whatsappNumber;
+      
+      await updateDoc(doc(db, 'users', userProfile.uid), updateData);
       
       setSuccess('Profile updated successfully!');
       setError('');
@@ -58,16 +61,28 @@ const Profile = () => {
           </div>
 
           {userProfile?.role === 'developer' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                GitHub Profile URL
-              </label>
-              <input
-                {...register('githubProfile')}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
-                placeholder="https://github.com/username"
-              />
-            </div>
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  GitHub Profile URL
+                </label>
+                <input
+                  {...register('githubProfile')}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
+                  placeholder="https://github.com/username"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  LinkedIn Profile URL
+                </label>
+                <input
+                  {...register('linkedinProfile')}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
+                  placeholder="https://linkedin.com/in/username"
+                />
+              </div>
+            </>
           )}
 
           <div>

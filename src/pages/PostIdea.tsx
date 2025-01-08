@@ -1,9 +1,9 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import type { StartupIdea } from '../types';
 
 interface IdeaFormData {
@@ -18,33 +18,61 @@ const PostIdea = () => {
   const { userProfile } = useAuth();
   const { register, handleSubmit, formState: { errors } } = useForm<IdeaFormData>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [error, setError] = React.useState('');
+  const editingIdea = location.state?.idea as StartupIdea | undefined;
+
+  React.useEffect(() => {
+    if (editingIdea) {
+      // Pre-fill form with existing idea data
+      const defaultValues = {
+        title: editingIdea.title,
+        description: editingIdea.description,
+        equityRange: editingIdea.equityRange,
+        salaryRange: editingIdea.salaryRange,
+        skills: editingIdea.skills.join(', ')
+      };
+      Object.keys(defaultValues).forEach(key => {
+        const input = document.querySelector(`[name="${key}"]`) as HTMLInputElement;
+        if (input) {
+          input.value = defaultValues[key as keyof typeof defaultValues];
+        }
+      });
+    }
+  }, [editingIdea]);
 
   const onSubmit = async (data: IdeaFormData) => {
     try {
       if (!userProfile) return;
 
-      const idea: Omit<StartupIdea, 'id'> = {
+      const ideaData = {
         founderId: userProfile.uid,
         title: data.title,
         description: data.description,
         equityRange: data.equityRange,
         salaryRange: data.salaryRange,
         skills: data.skills.split(',').map(skill => skill.trim()),
-        createdAt: new Date(),
+        createdAt: editingIdea ? editingIdea.createdAt : new Date(),
       };
 
-      await addDoc(collection(db, 'ideas'), idea);
+      if (editingIdea) {
+        await updateDoc(doc(db, 'ideas', editingIdea.id), ideaData);
+      } else {
+        await addDoc(collection(db, 'ideas'), ideaData);
+      }
+      
       navigate('/dashboard');
     } catch (err) {
-      setError('Failed to post idea');
+      setError(editingIdea ? 'Failed to update idea' : 'Failed to post idea');
       console.error(err);
     }
   };
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-8">Post Your Startup Idea</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-8">
+        {editingIdea ? 'Edit Startup Idea' : 'Post Your Startup Idea'}
+      </h1>
 
       <div className="bg-white p-6 rounded-lg shadow-sm">
         {error && (
@@ -119,7 +147,7 @@ const PostIdea = () => {
             type="submit"
             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
           >
-            Post Idea
+            {editingIdea ? 'Update Idea' : 'Post Idea'}
           </button>
         </form>
       </div>

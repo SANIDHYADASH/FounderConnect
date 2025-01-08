@@ -1,8 +1,8 @@
 import React from 'react';
-import { collection, query, orderBy, getDocs, addDoc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, addDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import type { StartupIdea } from '../types';
+import type { StartupIdea, Application } from '../types';
 
 const BrowseIdeas = () => {
   const { userProfile } = useAuth();
@@ -10,13 +10,29 @@ const BrowseIdeas = () => {
   const [selectedIdea, setSelectedIdea] = React.useState<StartupIdea | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
+  const [appliedIdeas, setAppliedIdeas] = React.useState<Set<string>>(new Set());
 
   React.useEffect(() => {
-    const fetchIdeas = async () => {
+    const fetchIdeasAndApplications = async () => {
       try {
+        // Fetch all ideas
         const ideasQuery = query(collection(db, 'ideas'), orderBy('createdAt', 'desc'));
         const snapshot = await getDocs(ideasQuery);
-        setIdeas(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StartupIdea)));
+        const ideasData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StartupIdea));
+        setIdeas(ideasData);
+
+        // Fetch user's applications
+        if (userProfile) {
+          const applicationsQuery = query(
+            collection(db, 'applications'),
+            where('developerId', '==', userProfile.uid)
+          );
+          const applicationsSnapshot = await getDocs(applicationsQuery);
+          const appliedIdeaIds = new Set(
+            applicationsSnapshot.docs.map(doc => (doc.data() as Application).ideaId)
+          );
+          setAppliedIdeas(appliedIdeaIds);
+        }
       } catch (err) {
         console.error(err);
         setError('Failed to load ideas');
@@ -25,8 +41,8 @@ const BrowseIdeas = () => {
       }
     };
 
-    fetchIdeas();
-  }, []);
+    fetchIdeasAndApplications();
+  }, [userProfile]);
 
   const handleApply = async (idea: StartupIdea) => {
     setSelectedIdea(idea);
@@ -41,6 +57,11 @@ const BrowseIdeas = () => {
     const equityRequest = (form.elements.namedItem('equityRequest') as HTMLInputElement).value;
     const salaryRequest = (form.elements.namedItem('salaryRequest') as HTMLInputElement).value;
 
+    if (!userProfile.githubProfile || !userProfile.linkedinProfile) {
+      setError('Please add your GitHub and LinkedIn profiles in your profile settings before applying');
+      return;
+    }
+
     try {
       await addDoc(collection(db, 'applications'), {
         ideaId: selectedIdea.id,
@@ -50,10 +71,17 @@ const BrowseIdeas = () => {
         salaryRequest,
         status: 'pending',
         createdAt: new Date(),
+        developerProfile: {
+          name: userProfile.name,
+          email: userProfile.email,
+          githubProfile: userProfile.githubProfile,
+          linkedinProfile: userProfile.linkedinProfile,
+          whatsappNumber: userProfile.whatsappNumber
+        }
       });
 
+      setAppliedIdeas(prev => new Set([...prev, selectedIdea.id]));
       setSelectedIdea(null);
-      // Show success message or redirect
     } catch (err) {
       console.error(err);
       setError('Failed to submit application');
@@ -89,12 +117,21 @@ const BrowseIdeas = () => {
                 <span className="text-sm text-gray-500">Equity: {idea.equityRange}</span>
                 <span className="text-sm text-gray-500 ml-4">Salary: {idea.salaryRange}</span>
               </div>
-              <button
-                onClick={() => handleApply(idea)}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-              >
-                Apply
-              </button>
+              {appliedIdeas.has(idea.id) ? (
+                <button
+                  disabled
+                  className="bg-gray-300 text-gray-600 px-4 py-2 rounded-md cursor-not-allowed"
+                >
+                  Already Applied
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleApply(idea)}
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                >
+                  Apply
+                </button>
+              )}
             </div>
           </div>
         ))}

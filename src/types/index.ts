@@ -6,6 +6,7 @@ export interface User {
   role: UserRole;
   name: string;
   githubProfile?: string;
+  linkedinProfile?: string;
   whatsappNumber?: string;
 }
 
@@ -28,5 +29,6 @@ export interface Application {
   equityRequest: string;
   salaryRequest: string;
   status: 'pending' | 'accepted' | 'rejected';
+  rejectionReason?: string;
   createdAt: Date;
 }
