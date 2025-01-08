@@ -110,7 +110,7 @@ interface Application {
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/founder-connect.git
+git clone https://github.com/sanidhyadash/FounderConnect.git
 cd founder-connect
 ```
 
